@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ExerciseType } from "@/types/exerciseType";
+import {
+  addExercise as addExAction,
+  deleteExercise as deleteExAction,
+} from "@/actions/exerciseAction";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,43 +27,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Save, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
-// Sample workout data
-const initialWorkouts = {
-  monday: [
-    { id: 1, name: "Bench Press", sets: 4, reps: "8-10", weight: 135 },
-    {
-      id: 2,
-      name: "Incline Dumbbell Press",
-      sets: 3,
-      reps: "10-12",
-      weight: 50,
-    },
-    { id: 3, name: "Cable Flyes", sets: 3, reps: "12-15", weight: 25 },
-  ],
-  tuesday: [],
-  wednesday: [
-    { id: 1, name: "Squats", sets: 4, reps: "8-10", weight: 185 },
-    { id: 2, name: "Leg Press", sets: 3, reps: "10-12", weight: 300 },
-    { id: 3, name: "Leg Extensions", sets: 3, reps: "12-15", weight: 90 },
-  ],
-  thursday: [],
-  friday: [
-    { id: 1, name: "Pull-ups", sets: 4, reps: "8-10", weight: 0 },
-    { id: 2, name: "Barbell Rows", sets: 3, reps: "10-12", weight: 135 },
-    { id: 3, name: "Lat Pulldowns", sets: 3, reps: "12-15", weight: 120 },
-  ],
-  saturday: [
-    { id: 1, name: "Bicep Curls", sets: 4, reps: "10-12", weight: 30 },
-    { id: 2, name: "Tricep Pushdowns", sets: 3, reps: "12-15", weight: 50 },
-    { id: 3, name: "Shoulder Press", sets: 3, reps: "8-10", weight: 45 },
-  ],
-  sunday: [],
-};
+interface Props {
+  initialWorkouts: Record<string, ExerciseType[]>;
+}
 
-export default function WorkoutPlanner() {
-  const [workouts, setWorkouts] = useState(initialWorkouts);
+export default function WorkoutPlannerClient({ initialWorkouts }: Props) {
+  // Workouts come from server via initialWorkouts
   const [open, setOpen] = useState(false);
   const [currentDay, setCurrentDay] = useState("monday");
   const [newExercise, setNewExercise] = useState({
@@ -66,68 +43,43 @@ export default function WorkoutPlanner() {
     reps: "10-12",
     weight: 0,
   });
+  const router = useRouter();
 
-  const addExercise = () => {
+  const addExercise = async () => {
     if (!newExercise.name) return;
-
-    const exercise = {
-      id: Date.now(),
-      name: newExercise.name,
-      sets: newExercise.sets,
-      reps: newExercise.reps,
-      weight: newExercise.weight,
-    };
-
-    setWorkouts({
-      ...workouts,
-      [currentDay]: [...workouts[currentDay], exercise],
-    });
-
-    setNewExercise({
-      name: "",
-      sets: 3,
-      reps: "10-12",
-      weight: 0,
-    });
-
+    await addExAction(
+      currentDay,
+      newExercise.name,
+      newExercise.sets,
+      newExercise.reps,
+      newExercise.weight
+    );
     setOpen(false);
+    router.refresh();
   };
 
-  const removeExercise = (day, id) => {
-    setWorkouts({
-      ...workouts,
-      [day]: workouts[day].filter((exercise) => exercise.id !== id),
-    });
+  const removeExercise = async (id: number) => {
+    await deleteExAction(id);
+    router.refresh();
   };
 
-  const openAddDialog = (day) => {
+  const openAddDialog = (day: string) => {
     setCurrentDay(day);
     setOpen(true);
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Weekly Workout Plan
-        </h1>
-        <p className="text-muted-foreground">
-          Plan your workouts for the entire week
-        </p>
-      </div>
-
       <Tabs defaultValue="monday" className="w-full">
         <TabsList className="grid grid-cols-7">
-          <TabsTrigger value="monday">Mon</TabsTrigger>
-          <TabsTrigger value="tuesday">Tue</TabsTrigger>
-          <TabsTrigger value="wednesday">Wed</TabsTrigger>
-          <TabsTrigger value="thursday">Thu</TabsTrigger>
-          <TabsTrigger value="friday">Fri</TabsTrigger>
-          <TabsTrigger value="saturday">Sat</TabsTrigger>
-          <TabsTrigger value="sunday">Sun</TabsTrigger>
+          {Object.keys(initialWorkouts).map((day) => (
+            <TabsTrigger key={day} value={day}>
+              {day.slice(0, 3).toUpperCase()}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        {Object.keys(workouts).map((day) => (
+        {Object.entries(initialWorkouts).map(([day, exercises]) => (
           <TabsContent key={day} value={day} className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold capitalize">{day}</h2>
@@ -136,16 +88,15 @@ export default function WorkoutPlanner() {
               </Button>
             </div>
 
-            {workouts[day].length === 0 ? (
+            {exercises.length === 0 ? (
               <Card>
                 <CardContent className="py-10 text-center text-muted-foreground">
-                  No exercises planned for this day. Click "Add Exercise" to
-                  start building your workout.
+                  No exercises planned for this day.
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4">
-                {workouts[day].map((exercise) => (
+                {exercises.map((exercise) => (
                   <Card key={exercise.id}>
                     <CardHeader className="py-3">
                       <div className="flex justify-between items-center">
@@ -153,7 +104,7 @@ export default function WorkoutPlanner() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeExercise(day, exercise.id)}
+                          onClick={() => removeExercise(exercise.id)}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -188,7 +139,7 @@ export default function WorkoutPlanner() {
           <DialogHeader>
             <DialogTitle>Add New Exercise</DialogTitle>
             <DialogDescription>
-              Add a new exercise to your {currentDay} workout.
+              Add an exercise to your {currentDay} workout.
             </DialogDescription>
           </DialogHeader>
 
@@ -211,12 +162,12 @@ export default function WorkoutPlanner() {
                 <Input
                   id="sets"
                   type="number"
-                  min="1"
+                  min={1}
                   value={newExercise.sets}
                   onChange={(e) =>
                     setNewExercise({
                       ...newExercise,
-                      sets: Number.parseInt(e.target.value),
+                      sets: e.target.valueAsNumber,
                     })
                   }
                 />
@@ -248,19 +199,18 @@ export default function WorkoutPlanner() {
                 <Input
                   id="weight"
                   type="number"
-                  min="0"
+                  min={0}
                   value={newExercise.weight}
                   onChange={(e) =>
                     setNewExercise({
                       ...newExercise,
-                      weight: Number.parseInt(e.target.value),
+                      weight: e.target.valueAsNumber,
                     })
                   }
                 />
               </div>
             </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
@@ -269,13 +219,6 @@ export default function WorkoutPlanner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className="flex justify-end">
-        <Button className="gap-2">
-          <Save className="h-4 w-4" />
-          Save Weekly Plan
-        </Button>
-      </div>
     </div>
   );
 }
